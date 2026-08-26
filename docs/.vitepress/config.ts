@@ -67,6 +67,7 @@ function sidebar() {
       items: [
         { text: '01 我为什么要自己写一个 Agent', link: '/posts/agent/01-单次DeepSeek请求' },
         { text: '02 加上多轮对话', link: '/posts/agent/02-多轮对话' },
+        { text: '03 给对话加个 Loading', link: '/posts/agent/03-Loading' },
       ]
     },
     {
