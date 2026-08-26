@@ -63,6 +63,13 @@ function nav() {
 function sidebar() {
   return [
     {
+      text: 'Agent Harness 学习',
+      items: [
+        { text: '01 我为什么要自己写一个 Agent', link: '/posts/agent/01-单次DeepSeek请求' },
+        { text: '02 加上多轮对话', link: '/posts/agent/02-多轮对话' },
+      ]
+    },
+    {
       text: '2025年终总结',
       items: [
         { text: '2025今年计划', link: '/posts/2025-今年计划' },
