@@ -38,33 +38,57 @@ wget -O - https://get.acme.sh | sh -s email=your@email.com
 
 ### ✅ 3. 申请 const.site 泛域名证书流程
 
-#### 方式一：自动 DNS 验证,
-> ✅推荐使用自动 DNS 验证，操作流程如下：
-> 1. 登录[RAM访问控制面板](https://ram.console.aliyun.com/users)为自己创建一个子账号并生成 AccessKey。
-> 2. 不用修改任何配置文件，只需在终端里执行：
->```bash
-> export Ali_Key="你的Aliyun AccessKeyId"
-> export Ali_Secret="你的Aliyun AccessKeySecret"
->```
-> 3. 然后执行以下命令申请证书：
-> ```bash
-> acme.sh --issue --dns dns_ali -d *.const.site -d const.site
-> ```
+#### 方式一：自动 DNS 验证（推荐）
 
-#### 方式二：手动 DNS 验证
-> 被迫使用“手动 DNS 验证”方式。虽然我的域名是从阿里云购买的，但实际使用的 DNS 是万网默认的：
->
-> ```bash
-> # 验证当前域名是否在使用阿里云云解析，发现是万网的dns服务商
-> dig NS const.site +short
-> dns18.hichina.com.
-> dns17.hichina.com.
-> ```
->
-> 而不是阿里云云解析常见的：`ns1.alidns.com` 和 `ns2.alidns.com`。 所以 `dns_ali` 方式无法用，只能手动添加 TXT 记录 🌚
+推荐使用 `dns_ali` 自动 DNS 验证。这样 acme.sh 可以在续签时自动添加和删除 `_acme-challenge` TXT 记录，不需要每次手动去控制台复制粘贴。
+
+1. 登录 [RAM 访问控制面板](https://ram.console.aliyun.com/users)，创建一个专门给 acme.sh 使用的 RAM 用户并生成 AccessKey。
+2. 给这个 RAM 用户绑定 DNS 最小权限策略，至少需要允许下面 3 个操作：
+
+```json
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "alidns:DescribeDomainRecords",
+        "alidns:AddDomainRecord",
+        "alidns:DeleteDomainRecord"
+      ],
+      "Resource": [
+        "acs:alidns::<你的阿里云主账号ID>:domain/const.site"
+      ]
+    }
+  ]
+}
+```
+
+如果有多个域名，就在 `Resource` 里继续追加对应域名的 ARN。
+
+3. 在服务器里设置 AccessKey：
 
 ```bash
-acme.sh --issue -d *.const.site -d const.site \
+export Ali_Key="你的 Aliyun AccessKeyId"
+export Ali_Secret="你的 Aliyun AccessKeySecret"
+```
+
+4. 申请泛域名证书：
+
+```bash
+acme.sh --issue --dns dns_ali -d '*.const.site' -d const.site
+```
+
+> 如果执行时报 `Forbidden.RAM`，一般不是 acme.sh 命令写错了，而是这个 AccessKey 所属的 RAM 用户没有 DNS API 权限。
+
+#### 方式二：手动 DNS 验证（兜底）
+
+手动 DNS 验证只能作为临时兜底方案，比如暂时没有配置 RAM 权限，或者当前 DNS 服务商没有可用 API。
+
+如果 `dns_ali` 执行失败，优先检查 RAM AccessKey 是否有对应的 `alidns` 权限，不要直接切回手动模式。
+
+```bash
+acme.sh --issue -d '*.const.site' -d const.site \
   --dns --yes-I-know-dns-manual-mode-enough-go-ahead-please
 ```
 
@@ -78,7 +102,7 @@ acme.sh --issue -d *.const.site -d const.site \
 
 ```bash
 # 手动 DNS 验证模式的强确认参数，表示我知道还需要继续手动处理 TXT 记录
-acme.sh --renew -d *.const.site \
+acme.sh --renew -d '*.const.site' \
   --yes-I-know-dns-manual-mode-enough-go-ahead-please
 ```
 
@@ -91,7 +115,7 @@ acme.sh --renew -d *.const.site \
 mkdir -p /ssl/const.site
 
 # 将证书拷贝到刚才保存的证书目录，方便管理
-acme.sh --install-cert -d *.const.site \
+acme.sh --install-cert -d '*.const.site' \
   --key-file /ssl/const.site/const.site.key \
   --fullchain-file /ssl/const.site/const.site.pem \
   --reloadcmd "nginx -s reload"
@@ -145,13 +169,13 @@ crontab -e
 ```bash
 0 3 * * * "/root/.acme.sh"/acme.sh --cron --home "/root/.acme.sh" > /dev/null
 ```
-手动触发续签检查：(手动dns记录验证才需要做)
+手动触发续签检查（排查或想立即检查续签状态时使用）：
 
 ```bash
 acme.sh --cron --home /root/.acme.sh
 ```
 
-> ⚠️ 注意：虽然 acme.sh 自动添加了定时任务，但**仅适用于支持自动 DNS 验证的场景**。
+> ⚠️ 注意：cron 只能自动触发 acme.sh。真正做到无人值守续签，还需要证书本身使用 `dns_ali` 这类自动 DNS 验证方式，并且 RAM AccessKey 有添加、查询、删除 TXT 记录的权限。手动 DNS 验证模式不会自动帮你去控制台添加 TXT 记录。
 
 ### ✅ 7. 如后续添加新的子域
 
